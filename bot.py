@@ -2,9 +2,11 @@ import os
 import discord
 from discord.ext import commands
 
+# ---- Settings ----
 TOKEN = os.getenv("DISCORD_TOKEN")
-AD_CHANNEL_NAME = "advertisement"  # change to your actual ad channel name
+AD_CHANNEL_NAME = "advertisement"  # your ad channel name
 
+# ---- Discord Intents ----
 intents = discord.Intents.default()
 intents.message_content = True
 intents.messages = True
@@ -13,7 +15,7 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Advertisement keywords
+# ---- Advertisement Keywords ----
 AD_KEYWORDS = [
     "discord.gg",
     "invite.gg",
@@ -28,10 +30,11 @@ AD_KEYWORDS = [
     "follow me on",
     "lichess.org/team",
     "lichess.org/swiss",
-    "lichess.org/tournament"
+    "lichess.org/tournament",
+    "lichess.org/blog"
 ]
 
-# Only Admins are exempt
+# ---- Only Admins are exempt ----
 EXEMPT_ROLES = ["Admin"]
 
 @bot.event
@@ -47,21 +50,25 @@ async def on_message(message):
     if message.channel.name.lower() == AD_CHANNEL_NAME.lower():
         return
 
-    # --- Skip exempt roles (Admins only) ---
+    # --- Skip Admins ---
     if any(role.name in EXEMPT_ROLES for role in message.author.roles):
         return
 
-    # --- Detect ad content ---
     msg_lower = message.content.lower()
-    if any(keyword in msg_lower for keyword in AD_KEYWORDS):
+
+    # --- Detect any blog links or ad keywords ---
+    contains_ad = any(keyword in msg_lower for keyword in AD_KEYWORDS)
+    contains_lichess_blog = "lichess.org/@/" in msg_lower and "/blog/" in msg_lower
+
+    if contains_ad or contains_lichess_blog:
         try:
             await message.delete()
             warning = (
-                f"{message.author.mention},  advertising is only allowed in "
+                f"{message.author.mention}, Advertising is only allowed in "
                 f"#{AD_CHANNEL_NAME}!\n"
                 " It will be **timeout next time** if I see you again advertising here."
             )
-            await message.channel.send(warning, delete_after=8)
+            await message.channel.send(warning)  # warning stays visible
             print(f"🗑 Deleted ad from {message.author} in #{message.channel}")
         except Exception as e:
             print(f"⚠️ Error deleting message: {e}")
