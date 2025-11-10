@@ -31,7 +31,10 @@ AD_KEYWORDS = [
     "lichess.org/team",
     "lichess.org/swiss",
     "lichess.org/tournament",
-    "lichess.org/blog"
+    "lichess.org/blog",
+    "xhamster.desi",
+    "facebook.com",
+    "subscribe"
 ]
 
 # ---- Only Admins are exempt ----
