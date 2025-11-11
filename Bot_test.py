@@ -36,7 +36,7 @@ AD_KEYWORDS = [
     "facebook"
 ]
 
-EXEMPT_ROLES = ["Admin", "Moderators"]
+EXEMPT_ROLES = ["Admin", "Moderator"]
 ad_offenders = {}  # track repeat offenders
 
 
