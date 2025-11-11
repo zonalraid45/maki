@@ -23,7 +23,7 @@ jobs:
       - name: Run the bot
         env:
           DISCORD_TOKEN: ${{ secrets.D }}
-        run: python -u bot.py
+        run: python -u Bot_test.py
 
    run-bot:
     runs-on: ubuntu-latest
