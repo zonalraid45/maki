@@ -2,10 +2,14 @@ import os
 import discord
 from discord.ext import commands
 from datetime import timedelta
+import re
 
-TOKEN = os.getenv("DISCORD_TOKEN")
-AD_CHANNEL_NAME = "advertisement"
+# ───────────── Settings ─────────────
+TOKEN = os.getenv("DISCORD_TOKEN")  # or replace directly: TOKEN = "YOUR_TOKEN_HERE"
+TIMEOUT_DURATION = timedelta(minutes=5)
+EXEMPT_ROLES = {"moderator", "admin"}  # roles ignored by bot
 
+# ───────────── Discord Setup ─────────────
 intents = discord.Intents.default()
 intents.message_content = True
 intents.messages = True
@@ -13,71 +17,79 @@ intents.guilds = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+recent_messages = {}
 
-AD_KEYWORDS = [
-    "discord.gg",
-    "invite.gg",
-    "youtube.com",
-    "twitch.tv",
-    "kick.com",
-    "chess.com",
-    "telegram.me",
-    "instagram.com",
-    "join my server",
-    "join my",
-    "follow me on",
-    "lichess.org/team",
-    "lichess.org/swiss",
-    "lichess.org/tournament",
-    "lichess.org/blog",
-    "xhamster.desi",
-    "facebook.com",
-    "subscribe"
-]
+# ───────────── Helper Functions ─────────────
+def is_gibberish(text: str) -> bool:
+    if len(text) < 6:
+        return False
+    # No vowels and only letters → gibberish
+    if not any(c in "aeiouAEIOU" for c in text) and text.isalpha():
+        return True
+    # Too many unique random letters (like "ndrhkwrlyutwq")
+    letters = re.sub(r"[^a-zA-Z]", "", text)
+    if len(letters) >= 6 and len(set(letters)) > 6:
+        return True
+    return False
 
-EXEMPT_ROLES = ["Admin", "Moderator"]
-ad_offenders = {}
 
+def is_exempt(member: discord.Member) -> bool:
+    """Return True if user has Moderator or Admin role."""
+    return any(role.name.lower() in EXEMPT_ROLES for role in member.roles)
+
+
+# ───────────── Events ─────────────
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
 
+
 @bot.event
-async def on_message(message):
-    if message.author.bot:
-        return
-    if message.channel.name.lower() == AD_CHANNEL_NAME.lower():
-        return
-    if any(role.name in EXEMPT_ROLES for role in message.author.roles):
+async def on_message(message: discord.Message):
+    if message.author.bot or not message.guild:
         return
 
-    msg_lower = message.content.lower()
-    contains_ad = any(keyword in msg_lower for keyword in AD_KEYWORDS)
-    contains_lichess_blog = "lichess.org/@/" in msg_lower and "/blog/" in msg_lower
+    member = message.author
+    content = message.content.strip().lower()
 
-    if contains_ad or contains_lichess_blog:
+    # Skip exempt roles
+    if is_exempt(member):
+        return
+
+    # Track last few messages by user
+    history = recent_messages.get(member.id, [])
+    history.append(content)
+    if len(history) > 6:
+        history.pop(0)
+    recent_messages[member.id] = history
+
+    # ─── Repeated message check ───
+    if history.count(content) >= 4:
         try:
-            await message.delete()
-            user_id = message.author.id
-            ad_offenders[user_id] = ad_offenders.get(user_id, 0) + 1
-
-            if ad_offenders[user_id] == 1:
-                warning = (
-                    f"{message.author.mention}, Advertising is only allowed in "
-                    f"#{AD_CHANNEL_NAME}!\n"
-                    "Next time, you’ll be **timed out for 5 minutes.**"
-                )
-                await message.channel.send(warning)
-                print(f"🗑 Deleted ad from {message.author} (1st offense)")
-            else:
-                timeout_duration = timedelta(minutes=5)
-                await message.author.timeout(timeout_duration, reason="Repeated advertisement")
-                await message.channel.send(f"{message.author.mention}, As your wish :)")
-                print(f"⏳ Timed out {message.author} for 5 minutes (2nd offense)")
-
+            await member.timeout(TIMEOUT_DURATION, reason="Spam (repeated message 4+ times)")
+            await message.channel.send(
+                f"🚫 {member.mention} You are timed out for 5 minutes for spamming the same message repeatedly."
+            )
+            return
+        except discord.Forbidden:
+            await message.channel.send("⚠️ Missing permission to timeout users.")
         except Exception as e:
-            print(f"⚠️ Error handling ad from {message.author}: {e}")
+            print("Error (spam):", e)
+
+    # ─── Gibberish check ───
+    if is_gibberish(content):
+        try:
+            await member.timeout(TIMEOUT_DURATION, reason="Nonsense/gibberish message")
+            await message.channel.send(
+                f"🚫 {member.mention} You are timed out for 5 minutes for sending nonsense messages."
+            )
+            return
+        except discord.Forbidden:
+            await message.channel.send("⚠️ Missing permission to timeout users.")
+        except Exception as e:
+            print("Error (gibberish):", e)
 
     await bot.process_commands(message)
+
 
 bot.run(TOKEN)
