@@ -42,4 +42,4 @@ jobs:
       - name: Run the bot
         env:
           DISCORD_TOKEN: ${{ secrets.D }}
-        run: python -u Bot_test.py
+        run: python -u Bot.py
